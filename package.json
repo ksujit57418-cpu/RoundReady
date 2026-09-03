@@ -1,0 +1,20 @@
+{
+  "name": "roundready",
+  "version": "0.0.0",
+  "private": false,
+  "description": "An open-source AI practice room for interviews, concepts, and spoken English.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-handle/roundready"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2"
+  }
+}
