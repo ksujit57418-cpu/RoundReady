@@ -32,16 +32,43 @@ document.querySelector('#app').innerHTML = `
       </div>
     </main>
   </div>
+  <div class="interview-modal" id="interview-modal" aria-hidden="true">
+    <div class="interview-room" role="dialog" aria-modal="true" aria-labelledby="room-title">
+      <header class="room-header"><div><p class="eyebrow">MOCK INTERVIEW · BACKEND DEVELOPER</p><h2 id="room-title">Your interview room</h2></div><div class="room-meta"><span class="live-dot"></span><span id="timer">00:00</span><button class="close-room" id="close-room" aria-label="Close interview">×</button></div></header>
+      <div class="room-layout">
+        <section class="camera-panel"><div class="camera-preview" id="camera-preview"><div class="camera-placeholder"><span>◉</span><strong>Camera preview</strong><small>Your video will appear here</small></div><video id="video" autoplay muted playsinline></video><div class="camera-status" id="camera-status">Camera is off</div></div><div class="room-controls"><button class="room-control" id="camera-toggle">◉ <span>Camera</span></button><button class="room-control" id="mic-toggle">♩ <span>Microphone</span></button><button class="room-control" id="screen-toggle">▣ <span>Notes</span></button></div></section>
+        <section class="question-panel"><div class="question-count">QUESTION 01 <span>OF 05</span></div><h3>Tell me about a backend project you are proud of.</h3><p>Take a moment to think. There is no perfect answer. Speak naturally and use a clear structure.</p><div class="answer-box"><div class="answer-label"><span>YOUR ANSWER</span><span id="answer-time">00:00</span></div><textarea id="answer" placeholder="Type your answer, or use the microphone to speak..."></textarea><div class="answer-bottom"><span class="recording-state" id="recording-state">● Ready when you are</span><button class="record-button" id="record-button">● Start answering</button></div></div><button class="next-question" id="next-question">Submit answer <span>→</span></button></section>
+      </div>
+    </div>
+  </div>
+  <div class="feedback-modal" id="feedback-modal" aria-hidden="true"><div class="feedback-card"><button class="close-room" id="close-feedback" aria-label="Close feedback">×</button><p class="eyebrow">SESSION COMPLETE</p><h2>Good work showing up.</h2><p class="feedback-copy">Your practice session is saved locally. AI feedback will appear here once the feedback service is connected.</p><div class="feedback-stats"><div><strong>01</strong><small>Question answered</small></div><div><strong>10 min</strong><small>Recommended practice</small></div><div><strong>Private</strong><small>Stored on this device</small></div></div><button class="primary-button" id="done-feedback">Back to overview</button></div></div>
   <div class="toast" id="toast" role="status"></div>
 `
 
 const toast = document.querySelector('#toast')
 const showToast = (message) => { toast.textContent = message; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 3200) }
-const requestMedia = async (kind) => {
+const interviewModal = document.querySelector('#interview-modal')
+const feedbackModal = document.querySelector('#feedback-modal')
+const video = document.querySelector('#video')
+let mediaStream
+let sessionTimer
+let seconds = 0
+const formatTime = (value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
+const openInterview = async () => { interviewModal.classList.add('open'); interviewModal.setAttribute('aria-hidden', 'false'); seconds = 0; document.querySelector('#timer').textContent = '00:00'; sessionTimer = window.setInterval(() => { seconds += 1; document.querySelector('#timer').textContent = formatTime(seconds) }, 1000); await requestMedia('camera', true) }
+const closeInterview = () => { window.clearInterval(sessionTimer); mediaStream?.getTracks().forEach((track) => track.stop()); mediaStream = undefined; video.srcObject = null; interviewModal.classList.remove('open'); interviewModal.setAttribute('aria-hidden', 'true') }
+const requestMedia = async (kind, keepStream = false) => {
   if (!navigator.mediaDevices?.getUserMedia) { showToast('Camera and microphone are not available in this browser.'); return }
-  try { const stream = await navigator.mediaDevices.getUserMedia({ video: kind === 'camera', audio: kind === 'microphone' }); stream.getTracks().forEach((track) => track.stop()); showToast(`${kind === 'camera' ? 'Camera' : 'Microphone'} access is ready. Your device stays in control.`) } catch { showToast(`${kind === 'camera' ? 'Camera' : 'Microphone'} access was not granted. You can enable it when you start.`) }
+  try { const stream = await navigator.mediaDevices.getUserMedia({ video: kind === 'camera', audio: kind === 'microphone' }); if (keepStream) { mediaStream = stream; video.srcObject = stream; document.querySelector('#camera-preview').classList.add('has-video'); document.querySelector('#camera-status').textContent = 'Camera is live' } else { stream.getTracks().forEach((track) => track.stop()) } showToast(`${kind === 'camera' ? 'Camera' : 'Microphone'} access is ready.`) } catch { showToast(`${kind === 'camera' ? 'Camera' : 'Microphone'} access was not granted.`) }
 }
-document.querySelector('#start-session').addEventListener('click', () => { requestMedia('camera'); requestMedia('microphone'); showToast('Preparing your interview room...') })
+document.querySelector('#start-session').addEventListener('click', openInterview)
+document.querySelector('#close-room').addEventListener('click', closeInterview)
+document.querySelector('#camera-toggle').addEventListener('click', () => { if (mediaStream) { const track = mediaStream.getVideoTracks()[0]; track.enabled = !track.enabled; document.querySelector('#camera-status').textContent = track.enabled ? 'Camera is live' : 'Camera is off'; document.querySelector('#camera-toggle').classList.toggle('control-off', !track.enabled) } else requestMedia('camera', true) })
+document.querySelector('#mic-toggle').addEventListener('click', async () => { if (mediaStream?.getAudioTracks().length) { const track = mediaStream.getAudioTracks()[0]; track.enabled = !track.enabled; document.querySelector('#mic-toggle').classList.toggle('control-off', !track.enabled); showToast(track.enabled ? 'Microphone is on.' : 'Microphone is muted.') } else await requestMedia('microphone') })
+document.querySelector('#screen-toggle').addEventListener('click', () => showToast('Notes panel is ready for your interview outline.'))
+document.querySelector('#record-button').addEventListener('click', () => { document.querySelector('#recording-state').textContent = '● Listening to your answer'; document.querySelector('#recording-state').classList.add('is-recording'); document.querySelector('#record-button').textContent = '■ Stop answering'; showToast('Take your time. RoundReady is listening.') })
+document.querySelector('#next-question').addEventListener('click', () => { closeInterview(); feedbackModal.classList.add('open'); feedbackModal.setAttribute('aria-hidden', 'false') })
+document.querySelector('#close-feedback').addEventListener('click', () => { feedbackModal.classList.remove('open'); feedbackModal.setAttribute('aria-hidden', 'true') })
+document.querySelector('#done-feedback').addEventListener('click', () => { feedbackModal.classList.remove('open'); feedbackModal.setAttribute('aria-hidden', 'true') })
 document.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', () => { showToast(button.dataset.action === 'speak' ? 'Speaking practice is ready to begin.' : 'Interview room is ready to begin.') }))
 document.querySelectorAll('.topic').forEach((topic) => topic.addEventListener('click', () => { document.querySelector('.active-topic').classList.remove('active-topic'); topic.classList.add('active-topic'); showToast(`${topic.dataset.topic} coach selected.`) }))
 document.querySelector('#tip-action').addEventListener('click', () => { requestMedia('microphone'); showToast('Say it in your own words. RoundReady will listen for clarity.') })
