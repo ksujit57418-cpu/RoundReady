@@ -11,10 +11,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.js",
+    "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
   }
 }
