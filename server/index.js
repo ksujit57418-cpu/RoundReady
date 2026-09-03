@@ -17,6 +17,10 @@ const questions = [
   'Tell me about a time you learned from a difficult bug.'
 ]
 
+app.get('/', (_request, response) => {
+  response.json({ service: 'RoundReady API', status: 'running', health: '/api/health' })
+})
+
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, service: 'roundready-api' })
 })
