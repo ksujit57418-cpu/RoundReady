@@ -17,6 +17,22 @@ const questions = [
   'Tell me about a time you learned from a difficult bug.'
 ]
 
+const scoreAnswer = (answer) => {
+  const words = answer.split(/\s+/).filter(Boolean)
+  const sentences = answer.split(/[.!?]+/).filter((sentence) => sentence.trim()).length
+  const hasStructure = /first|then|finally|because|result|impact|situation|task|action/i.test(answer)
+  const detailScore = Math.min(5, Math.max(1, Math.ceil(words.length / 20)))
+  const structureScore = hasStructure ? 5 : Math.min(4, Math.max(2, sentences))
+  const clarityScore = words.length >= 35 ? 5 : words.length >= 18 ? 4 : words.length >= 8 ? 3 : 2
+  return {
+    clarity: clarityScore,
+    structure: structureScore,
+    detail: detailScore,
+    summary: clarityScore >= 4 ? 'Clear response with a useful level of detail.' : 'Good start. Add a little more context and a concrete result.',
+    nextTip: hasStructure ? 'Keep using a clear beginning, middle, and result.' : 'Try the STAR structure: situation, task, action, and result.'
+  }
+}
+
 app.get('/', (_request, response) => {
   response.json({ service: 'RoundReady API', status: 'running', health: '/api/health' })
 })
@@ -57,7 +73,7 @@ app.post('/api/interview/sessions/:sessionId/answers', (request, response) => {
   const complete = session.questionIndex >= questions.length
   if (complete) session.status = 'complete'
   const nextQuestion = complete ? null : questions[session.questionIndex]
-  response.json({ status: session.status, feedback: { clarity: 'pending', structure: 'pending', note: 'Connect an AI provider to generate detailed feedback.' }, nextQuestion, questionNumber: complete ? questions.length : session.questionIndex + 1 })
+  response.json({ status: session.status, feedback: scoreAnswer(answer), nextQuestion, questionNumber: complete ? questions.length : session.questionIndex + 1 })
 })
 
 app.use((_request, response) => response.status(404).json({ error: 'Route not found' }))
