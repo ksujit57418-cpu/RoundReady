@@ -53,8 +53,15 @@ const video = document.querySelector('#video')
 let mediaStream
 let sessionTimer
 let seconds = 0
+let sessionId
+let questionNumber = 1
+const apiUrl = 'http://localhost:8787/api'
 const formatTime = (value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
-const openInterview = async () => { interviewModal.classList.add('open'); interviewModal.setAttribute('aria-hidden', 'false'); seconds = 0; document.querySelector('#timer').textContent = '00:00'; sessionTimer = window.setInterval(() => { seconds += 1; document.querySelector('#timer').textContent = formatTime(seconds) }, 1000); await requestMedia('camera', true) }
+const updateQuestion = (question, number, total = 5) => { document.querySelector('.question-count').innerHTML = `QUESTION ${String(number).padStart(2, '0')} <span>OF ${String(total).padStart(2, '0')}</span>`; document.querySelector('.question-panel h3').textContent = question; document.querySelector('#answer').value = ''; document.querySelector('#recording-state').textContent = '● Ready when you are'; document.querySelector('#recording-state').classList.remove('is-recording'); document.querySelector('#record-button').textContent = '● Start answering' }
+const openInterview = async () => {
+  try { const response = await fetch(`${apiUrl}/interview/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'Backend Developer', level: 'mid' }) }); if (response.ok) { const session = await response.json(); sessionId = session.sessionId; questionNumber = session.questionNumber; updateQuestion(session.question, session.questionNumber, session.totalQuestions) } else throw new Error('Session unavailable') } catch { sessionId = undefined; updateQuestion('Tell me about a backend project you are proud of.', 1); showToast('Backend is offline. You can still practice locally.') }
+  interviewModal.classList.add('open'); interviewModal.setAttribute('aria-hidden', 'false'); seconds = 0; document.querySelector('#timer').textContent = '00:00'; sessionTimer = window.setInterval(() => { seconds += 1; document.querySelector('#timer').textContent = formatTime(seconds) }, 1000); await requestMedia('camera', true)
+}
 const closeInterview = () => { window.clearInterval(sessionTimer); mediaStream?.getTracks().forEach((track) => track.stop()); mediaStream = undefined; video.srcObject = null; interviewModal.classList.remove('open'); interviewModal.setAttribute('aria-hidden', 'true') }
 const requestMedia = async (kind, keepStream = false) => {
   if (!navigator.mediaDevices?.getUserMedia) { showToast('Camera and microphone are not available in this browser.'); return }
@@ -66,7 +73,13 @@ document.querySelector('#camera-toggle').addEventListener('click', () => { if (m
 document.querySelector('#mic-toggle').addEventListener('click', async () => { if (mediaStream?.getAudioTracks().length) { const track = mediaStream.getAudioTracks()[0]; track.enabled = !track.enabled; document.querySelector('#mic-toggle').classList.toggle('control-off', !track.enabled); showToast(track.enabled ? 'Microphone is on.' : 'Microphone is muted.') } else await requestMedia('microphone') })
 document.querySelector('#screen-toggle').addEventListener('click', () => showToast('Notes panel is ready for your interview outline.'))
 document.querySelector('#record-button').addEventListener('click', () => { document.querySelector('#recording-state').textContent = '● Listening to your answer'; document.querySelector('#recording-state').classList.add('is-recording'); document.querySelector('#record-button').textContent = '■ Stop answering'; showToast('Take your time. RoundReady is listening.') })
-document.querySelector('#next-question').addEventListener('click', () => { closeInterview(); feedbackModal.classList.add('open'); feedbackModal.setAttribute('aria-hidden', 'false') })
+document.querySelector('#next-question').addEventListener('click', async () => {
+  const answer = document.querySelector('#answer').value.trim()
+  if (!answer) { showToast('Please add an answer before submitting.'); return }
+  if (!sessionId) { closeInterview(); feedbackModal.classList.add('open'); feedbackModal.setAttribute('aria-hidden', 'false'); return }
+  const submitButton = document.querySelector('#next-question'); submitButton.disabled = true; submitButton.textContent = 'Saving answer...'
+  try { const response = await fetch(`${apiUrl}/interview/sessions/${sessionId}/answers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer }) }); if (!response.ok) throw new Error('Answer could not be saved'); const result = await response.json(); if (result.nextQuestion) { questionNumber = result.questionNumber; updateQuestion(result.nextQuestion, result.questionNumber); showToast('Answer saved. Here is your next question.') } else { closeInterview(); feedbackModal.classList.add('open'); feedbackModal.setAttribute('aria-hidden', 'false') } } catch { showToast('Could not reach the backend. Your answer was not submitted.') } finally { submitButton.disabled = false; submitButton.innerHTML = 'Submit answer <span>→</span>' }
+})
 document.querySelector('#close-feedback').addEventListener('click', () => { feedbackModal.classList.remove('open'); feedbackModal.setAttribute('aria-hidden', 'true') })
 document.querySelector('#done-feedback').addEventListener('click', () => { feedbackModal.classList.remove('open'); feedbackModal.setAttribute('aria-hidden', 'true') })
 document.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', () => { showToast(button.dataset.action === 'speak' ? 'Speaking practice is ready to begin.' : 'Interview room is ready to begin.') }))
